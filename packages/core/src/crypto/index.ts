@@ -3,6 +3,20 @@
  * Export all crypto utilities
  */
 
+// Basic key management
 export * from './keys.js';
+
+// JWT utilities
 export * from './jwt.js';
+
+// Merkle tree for audit chain
 export * from './merkle.js';
+
+// HSM abstraction
+export * from './hsm/index.js';
+
+// Key lifecycle management
+export * from './key-lifecycle.js';
+
+// Hardened mandate tokens
+export * from './mandate-token.js';
