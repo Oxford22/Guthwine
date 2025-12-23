@@ -26,6 +26,11 @@
     "db:migrate": "pnpm --filter @guthwine/database db:migrate",
     "db:seed": "pnpm --filter @guthwine/database db:seed",
     "db:studio": "pnpm --filter @guthwine/database db:studio",
+    "demo": "pnpm --filter @guthwine/demo start",
+    "demo:server": "node packages/demo/dist/server.js",
+    "demo:mcp": "node packages/demo/dist/mcp-server.js",
+    "start:api": "pnpm --filter @guthwine/api start",
+    "start:mcp": "pnpm --filter @guthwine/mcp start",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "prepare": "husky install"
