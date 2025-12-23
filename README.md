@@ -1,6 +1,6 @@
-# Guthwine v2
+# Guthwine v2 - VAGNN Architecture
 
-> **Sovereign Governance Layer for AI Agents**
+> **Verifiable Autonomous Graph-Neural Network** - A Sovereign Governance Layer for AI Agents
 
 Guthwine is a production-grade, multi-tenant authorization and governance system for AI agents. It provides cryptographic identity, hierarchical delegation, policy-based transaction authorization, semantic risk assessment, and comprehensive audit trails.
 
@@ -32,6 +32,17 @@ Named after the legendary sword of King Éomer of Rohan, Guthwine ("battle-frien
 | **Compliance Module** | EU AI Act impact assessment, human oversight |
 | **Observability** | OpenTelemetry tracing, Prometheus metrics, alerting |
 | **Real-time Dashboard** | WebSocket updates, D3.js visualizations |
+
+### VAGNN Extensions (Phase 7)
+
+| Module | Capabilities |
+|--------|--------------|
+| **Zero-Knowledge** | Circom circuits, SnarkJS proofs, batch ECDSA verification, recursive composition |
+| **Graph Intelligence** | Neo4j CDC pipeline, Louvain community detection, WCC clustering, fraud alerts |
+| **Adversarial Resilience** | Red teaming, prompt injection defense, sandwich defense, perplexity filter |
+| **Sovereign Security** | Feldman's VSS, key sharding, emergency recovery council, DKG protocol |
+| **Chaos Engineering** | Fault injection, network partition, latency injection, resource exhaustion |
+| **Cartesian Merkle** | Non-membership proofs, deterministic structure, ZK-compatible serialization |
 
 ## Architecture
 
