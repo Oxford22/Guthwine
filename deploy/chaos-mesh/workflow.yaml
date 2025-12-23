@@ -1,0 +1,362 @@
+# Guthwine - Chaos Mesh Workflow Experiments
+#
+# Workflows chain multiple chaos experiments to test
+# complex failure scenarios and cascading effects.
+#
+# Hypothesis Testing:
+# - If network latency increases AND a pod dies, recovery should be < 30s
+# - If database fails, API should gracefully degrade
+# - If all replicas restart, service should recover without data loss
+
+---
+# Workflow 1: Cascading Failure Test
+# Tests: Network degradation → Pod failure → Recovery
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: cascading-failure-test
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: workflow
+    experiment: cascading
+spec:
+  entry: cascading-entry
+  templates:
+    - name: cascading-entry
+      templateType: Serial
+      deadline: "10m"
+      children:
+        - network-degradation
+        - wait-stabilize
+        - pod-failure
+        - verify-recovery
+
+    - name: network-degradation
+      templateType: NetworkChaos
+      deadline: "2m"
+      networkChaos:
+        action: delay
+        mode: all
+        selector:
+          namespaces:
+            - production
+          labelSelectors:
+            app: guthwine-api
+        delay:
+          latency: "200ms"
+          jitter: "50ms"
+        duration: "90s"
+
+    - name: wait-stabilize
+      templateType: Suspend
+      deadline: "30s"
+      suspend:
+        duration: "30s"
+
+    - name: pod-failure
+      templateType: PodChaos
+      deadline: "1m"
+      podChaos:
+        action: pod-kill
+        mode: one
+        selector:
+          namespaces:
+            - production
+          labelSelectors:
+            app: guthwine-api
+
+    - name: verify-recovery
+      templateType: StatusCheck
+      deadline: "2m"
+      statusCheck:
+        mode: Continuous
+        type: HTTP
+        http:
+          url: "http://guthwine-api.production.svc.cluster.local:3000/health"
+          method: GET
+          criteria:
+            statusCode: "200"
+        duration: "60s"
+        intervalSeconds: 5
+        successThreshold: 3
+        failureThreshold: 3
+
+---
+# Workflow 2: Database Failover Test
+# Tests: Database failure → API degradation → Database recovery → Full recovery
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: database-failover-test
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: workflow
+    experiment: db-failover
+spec:
+  entry: db-failover-entry
+  templates:
+    - name: db-failover-entry
+      templateType: Serial
+      deadline: "15m"
+      children:
+        - baseline-check
+        - kill-database
+        - verify-degradation
+        - wait-recovery
+        - verify-full-recovery
+
+    - name: baseline-check
+      templateType: StatusCheck
+      deadline: "1m"
+      statusCheck:
+        mode: Continuous
+        type: HTTP
+        http:
+          url: "http://guthwine-api.production.svc.cluster.local:3000/health"
+          method: GET
+          criteria:
+            statusCode: "200"
+        duration: "30s"
+        intervalSeconds: 5
+        successThreshold: 3
+        failureThreshold: 1
+
+    - name: kill-database
+      templateType: PodChaos
+      deadline: "1m"
+      podChaos:
+        action: pod-kill
+        mode: one
+        selector:
+          namespaces:
+            - production
+          labelSelectors:
+            app.kubernetes.io/name: neo4j
+
+    - name: verify-degradation
+      templateType: StatusCheck
+      deadline: "2m"
+      statusCheck:
+        mode: Continuous
+        type: HTTP
+        http:
+          url: "http://guthwine-api.production.svc.cluster.local:3000/health"
+          method: GET
+          criteria:
+            # API should return 503 or degraded status
+            statusCode: "503"
+        duration: "30s"
+        intervalSeconds: 5
+        successThreshold: 1
+        failureThreshold: 10
+
+    - name: wait-recovery
+      templateType: Suspend
+      deadline: "5m"
+      suspend:
+        duration: "120s"  # Wait for Neo4j to recover
+
+    - name: verify-full-recovery
+      templateType: StatusCheck
+      deadline: "3m"
+      statusCheck:
+        mode: Continuous
+        type: HTTP
+        http:
+          url: "http://guthwine-api.production.svc.cluster.local:3000/health"
+          method: GET
+          criteria:
+            statusCode: "200"
+        duration: "60s"
+        intervalSeconds: 5
+        successThreshold: 5
+        failureThreshold: 3
+
+---
+# Workflow 3: Rolling Restart Chaos
+# Tests: All pods restart in sequence → No downtime
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: rolling-restart-chaos
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: workflow
+    experiment: rolling-restart
+spec:
+  entry: rolling-entry
+  templates:
+    - name: rolling-entry
+      templateType: Parallel
+      deadline: "10m"
+      children:
+        - continuous-health-check
+        - rolling-kills
+
+    - name: continuous-health-check
+      templateType: StatusCheck
+      deadline: "10m"
+      statusCheck:
+        mode: Continuous
+        type: HTTP
+        http:
+          url: "http://guthwine-api.production.svc.cluster.local:3000/health"
+          method: GET
+          criteria:
+            statusCode: "200"
+        duration: "540s"  # 9 minutes
+        intervalSeconds: 2
+        successThreshold: 1
+        failureThreshold: 5  # Allow brief failures during restart
+
+    - name: rolling-kills
+      templateType: Serial
+      deadline: "9m"
+      children:
+        - kill-pod-1
+        - wait-1
+        - kill-pod-2
+        - wait-2
+        - kill-pod-3
+
+    - name: kill-pod-1
+      templateType: PodChaos
+      deadline: "1m"
+      podChaos:
+        action: pod-kill
+        mode: fixed
+        value: "1"
+        selector:
+          namespaces:
+            - production
+          labelSelectors:
+            app: guthwine-api
+
+    - name: wait-1
+      templateType: Suspend
+      deadline: "2m"
+      suspend:
+        duration: "90s"
+
+    - name: kill-pod-2
+      templateType: PodChaos
+      deadline: "1m"
+      podChaos:
+        action: pod-kill
+        mode: fixed
+        value: "1"
+        selector:
+          namespaces:
+            - production
+          labelSelectors:
+            app: guthwine-api
+
+    - name: wait-2
+      templateType: Suspend
+      deadline: "2m"
+      suspend:
+        duration: "90s"
+
+    - name: kill-pod-3
+      templateType: PodChaos
+      deadline: "1m"
+      podChaos:
+        action: pod-kill
+        mode: fixed
+        value: "1"
+        selector:
+          namespaces:
+            - production
+          labelSelectors:
+            app: guthwine-api
+
+---
+# Workflow 4: Multi-Layer Stress Test
+# Tests: CPU + Memory + Network stress simultaneously
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: multi-layer-stress
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: workflow
+    experiment: stress
+spec:
+  entry: stress-entry
+  templates:
+    - name: stress-entry
+      templateType: Parallel
+      deadline: "10m"
+      children:
+        - cpu-stress
+        - memory-stress
+        - network-stress
+        - health-monitor
+
+    - name: cpu-stress
+      templateType: StressChaos
+      deadline: "5m"
+      stressChaos:
+        mode: one
+        selector:
+          namespaces:
+            - production
+          labelSelectors:
+            app: guthwine-api
+        stressors:
+          cpu:
+            workers: 2
+            load: 70
+        duration: "240s"
+
+    - name: memory-stress
+      templateType: StressChaos
+      deadline: "5m"
+      stressChaos:
+        mode: one
+        selector:
+          namespaces:
+            - production
+          labelSelectors:
+            app: guthwine-api
+        stressors:
+          memory:
+            workers: 1
+            size: "256MB"
+        duration: "240s"
+
+    - name: network-stress
+      templateType: NetworkChaos
+      deadline: "5m"
+      networkChaos:
+        action: delay
+        mode: one
+        selector:
+          namespaces:
+            - production
+          labelSelectors:
+            app: guthwine-api
+        delay:
+          latency: "100ms"
+          jitter: "25ms"
+        duration: "240s"
+
+    - name: health-monitor
+      templateType: StatusCheck
+      deadline: "5m"
+      statusCheck:
+        mode: Continuous
+        type: HTTP
+        http:
+          url: "http://guthwine-api.production.svc.cluster.local:3000/health"
+          method: GET
+          criteria:
+            statusCode: "200"
+        duration: "240s"
+        intervalSeconds: 5
+        successThreshold: 1
+        failureThreshold: 10

@@ -1,0 +1,144 @@
+# Guthwine - Chaos Mesh Network Chaos Experiments
+#
+# These experiments validate the resilience of the WebSocket-based
+# CDC streaming architecture under adverse network conditions.
+#
+# Prerequisites:
+# - Chaos Mesh installed: kubectl apply -f https://mirrors.chaos-mesh.org/v2.6.0/install.yaml
+# - Target namespace labeled: kubectl label ns production chaos-mesh=enabled
+
+---
+# Experiment 1: WebSocket Latency Spike
+# Simulates network congestion affecting the CDC WebSocket server
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: ws-latency-spike
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: network
+    experiment: latency
+spec:
+  action: delay
+  mode: one  # Target single pod to test blast radius
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: guthwine-api
+      component: cdc-server
+  delay:
+    latency: "250ms"
+    correlation: "100"  # Sustained congestion, not random spikes
+    jitter: "50ms"
+  duration: "60s"
+  scheduler:
+    cron: "@every 1h"  # Continuous reliability assertion
+
+---
+# Experiment 2: Network Partition
+# Simulates complete network failure between services
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: neo4j-partition
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: network
+    experiment: partition
+spec:
+  action: partition
+  mode: all
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: guthwine-api
+  direction: both
+  target:
+    selector:
+      namespaces:
+        - production
+      labelSelectors:
+        app.kubernetes.io/name: neo4j
+    mode: all
+  duration: "30s"
+  # No scheduler - manual trigger only for partition tests
+
+---
+# Experiment 3: Packet Loss
+# Simulates unreliable network with packet drops
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: packet-loss-test
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: network
+    experiment: loss
+spec:
+  action: loss
+  mode: one
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: guthwine-api
+  loss:
+    loss: "25"  # 25% packet loss
+    correlation: "50"  # Some correlation for realistic behavior
+  duration: "120s"
+
+---
+# Experiment 4: Bandwidth Throttling
+# Simulates constrained bandwidth (mobile networks, etc.)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: bandwidth-throttle
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: network
+    experiment: bandwidth
+spec:
+  action: bandwidth
+  mode: all
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: guthwine-api
+  bandwidth:
+    rate: "1mbps"  # Throttle to 1 Mbps
+    limit: 20000   # Queue limit in packets
+    buffer: 10000  # Buffer size in packets
+  duration: "300s"
+
+---
+# Experiment 5: DNS Chaos
+# Simulates DNS resolution failures
+apiVersion: chaos-mesh.org/v1alpha1
+kind: DNSChaos
+metadata:
+  name: dns-failure
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: dns
+    experiment: failure
+spec:
+  action: error
+  mode: one
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: guthwine-api
+  patterns:
+    - "neo4j.production.svc.cluster.local"
+    - "redis.production.svc.cluster.local"
+  duration: "60s"

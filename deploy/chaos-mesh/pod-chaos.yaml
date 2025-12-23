@@ -1,0 +1,202 @@
+# Guthwine - Chaos Mesh Pod Chaos Experiments
+#
+# These experiments validate the resilience of the system
+# when pods fail or become unavailable.
+#
+# Tests:
+# - Leader election recovery (Neo4j, Redis)
+# - Graceful degradation
+# - Auto-scaling triggers
+
+---
+# Experiment 1: Neo4j Leader Kill
+# Tests Raft consensus and leader election
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: neo4j-leader-kill
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: pod
+    experiment: leader-kill
+spec:
+  action: pod-kill
+  mode: one  # Kill single pod (likely leader)
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app.kubernetes.io/name: neo4j
+      # In Enterprise Causal Clustering, target the leader
+      # neo4j.com/role: LEADER
+  gracePeriod: 0  # Immediate termination
+
+---
+# Experiment 2: API Pod Kill
+# Tests load balancer failover and client reconnection
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: api-pod-kill
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: pod
+    experiment: api-failover
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: guthwine-api
+  gracePeriod: 0
+  scheduler:
+    cron: "0 */4 * * *"  # Every 4 hours
+
+---
+# Experiment 3: Redis Sentinel Failover
+# Tests Redis high availability
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: redis-master-kill
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: pod
+    experiment: redis-failover
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app.kubernetes.io/name: redis
+      redis.io/role: master
+  gracePeriod: 0
+
+---
+# Experiment 4: Container Kill (not pod)
+# Tests container restart within pod
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: container-kill
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: pod
+    experiment: container-restart
+spec:
+  action: container-kill
+  mode: one
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: guthwine-api
+  containerNames:
+    - api  # Target specific container in multi-container pod
+  gracePeriod: 0
+
+---
+# Experiment 5: Pod Failure (crash loop simulation)
+# Tests backoff and recovery behavior
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: pod-failure-loop
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: pod
+    experiment: crash-loop
+spec:
+  action: pod-failure
+  mode: one
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: guthwine-api
+  duration: "30s"  # Pod will be unavailable for 30s
+
+---
+# Experiment 6: CPU Stress
+# Tests behavior under CPU pressure
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: cpu-stress
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: stress
+    experiment: cpu
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: guthwine-api
+  stressors:
+    cpu:
+      workers: 2
+      load: 80  # 80% CPU load
+  duration: "120s"
+
+---
+# Experiment 7: Memory Stress
+# Tests OOM behavior and memory limits
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: memory-stress
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: stress
+    experiment: memory
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: guthwine-api
+  stressors:
+    memory:
+      workers: 1
+      size: "512MB"  # Allocate 512MB
+  duration: "60s"
+
+---
+# Experiment 8: I/O Chaos
+# Tests disk I/O latency
+apiVersion: chaos-mesh.org/v1alpha1
+kind: IOChaos
+metadata:
+  name: io-latency
+  namespace: production
+  labels:
+    app.kubernetes.io/part-of: guthwine
+    chaos-type: io
+    experiment: latency
+spec:
+  action: latency
+  mode: one
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app.kubernetes.io/name: neo4j
+  volumePath: /data
+  path: "*"
+  delay: "100ms"
+  percent: 50
+  duration: "120s"
