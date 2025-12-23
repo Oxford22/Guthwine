@@ -20,3 +20,6 @@ export * from './key-lifecycle.js';
 
 // Hardened mandate tokens
 export * from './mandate-token.js';
+
+// Verifiable Secret Sharing (Feldman's VSS)
+export * from './vss/index.js';
