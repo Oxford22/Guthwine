@@ -28,11 +28,21 @@ model Organization {
   status               OrganizationStatus @default(ACTIVE)
   tier                 OrganizationTier   @default(FREE)
   
+  // Billing
+  stripeCustomerId     String?  @unique
+  stripePriceId        String?
+  subscriptionStatus   SubscriptionStatus @default(NONE)
+  trialEndsAt          DateTime?
+  
+  // Usage Limits (JSON)
+  usageLimits          Json     @default("{\"maxAgents\": 5, \"maxPolicies\": 10, \"maxApiCalls\": 10000, \"maxSemanticEvals\": 100}")
+  
   // Settings (JSON)
   settings             Json     @default("{}")
   
   // Encryption
   encryptionKeySalt    String
+  masterKeyVersion     Int      @default(1)
   
   // Metadata
   metadata             Json     @default("{}")
@@ -73,6 +83,15 @@ enum OrganizationTier {
   PROFESSIONAL
   ENTERPRISE
   WHITE_LABEL
+}
+
+enum SubscriptionStatus {
+  NONE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  PAUSED
 }
 
 // =============================================================================
@@ -139,13 +158,13 @@ model User {
 }
 
 enum UserRole {
-  OWNER
-  ADMIN
-  MANAGER
-  OPERATOR
-  DEVELOPER
-  AUDITOR
-  READONLY
+  OWNER           // Full access, can delete org
+  ADMIN           // Full access except org deletion
+  POLICY_MANAGER  // Manage policies, view agents
+  AGENT_OPERATOR  // Manage agents, view policies
+  DEVELOPER       // API access, view only
+  AUDITOR         // Read-only access to audit logs
+  READONLY        // Read-only access to everything
 }
 
 enum UserStatus {
@@ -206,15 +225,26 @@ model APIKey {
   keyHash           String   @unique
   keyPrefix         String
   
-  // Permissions
+  // Scopes (read, write, admin, billing)
+  scopes            APIKeyScope[] @default([READ])
+  
+  // Permissions (fine-grained)
   permissions       String[] @default([])
   
   // Rate limits
   rateLimitPerMinute Int?
   
-  // Usage
+  // Usage tracking for billing attribution
   lastUsedAt        DateTime?
   usageCount        Int      @default(0)
+  totalBytesIn      BigInt   @default(0)
+  totalBytesOut     BigInt   @default(0)
+  
+  // Key rotation support
+  version           Int      @default(1)
+  previousKeyHash   String?  // Old key hash during rotation
+  rotatedAt         DateTime?
+  gracePeriodEndsAt DateTime? // Old key valid until this time
   
   // Status
   isActive          Boolean  @default(true)
@@ -226,6 +256,14 @@ model APIKey {
   
   @@index([organizationId])
   @@index([keyPrefix])
+  @@index([previousKeyHash])
+}
+
+enum APIKeyScope {
+  READ
+  WRITE
+  ADMIN
+  BILLING
 }
 
 // =============================================================================

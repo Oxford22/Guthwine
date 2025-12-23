@@ -21,5 +21,8 @@ export * from './errors/index.js';
 // Utils
 export * from './utils/index.js';
 
+// Permissions
+export * from './permissions/index.js';
+
 // Version
 export const VERSION = '2.0.0';
