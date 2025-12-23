@@ -23,3 +23,6 @@ export * from './mandate-token.js';
 
 // Verifiable Secret Sharing (Feldman's VSS)
 export * from './vss/index.js';
+
+// Advanced Merkle Trees (Cartesian structure)
+export * from './merkle-advanced/index.js';
