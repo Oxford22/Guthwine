@@ -1,0 +1,27 @@
+apiVersion: v2
+name: guthwine
+description: Sovereign Governance Layer for AI Agents
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+keywords:
+  - ai
+  - governance
+  - agents
+  - authorization
+  - delegation
+home: https://github.com/Oxford22/Guthwine
+sources:
+  - https://github.com/Oxford22/Guthwine
+maintainers:
+  - name: Guthwine Team
+    email: team@guthwine.io
+dependencies:
+  - name: postgresql
+    version: "13.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: "18.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled

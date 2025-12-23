@@ -1,0 +1,192 @@
+# =============================================================================
+# Guthwine Helm Chart Values
+# =============================================================================
+
+# Global settings
+global:
+  imageRegistry: ghcr.io
+  imagePullSecrets: []
+
+# API Server
+api:
+  enabled: true
+  replicaCount: 3
+  
+  image:
+    repository: oxford22/guthwine
+    tag: latest
+    pullPolicy: Always
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+    hosts:
+      - host: api.guthwine.io
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: guthwine-api-tls
+        hosts:
+          - api.guthwine.io
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# MCP Server
+mcp:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: oxford22/guthwine-mcp
+    tag: latest
+    pullPolicy: Always
+  
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Database
+postgresql:
+  enabled: true
+  auth:
+    username: guthwine
+    database: guthwine
+    existingSecret: guthwine-postgresql
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+
+# Redis
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: guthwine-redis
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Secrets
+secrets:
+  # These should be provided via external secrets manager in production
+  create: false
+  databaseUrl: ""
+  redisUrl: ""
+  jwtSecret: ""
+  openaiApiKey: ""
+  stripeSecretKey: ""
+
+# Monitoring
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+  
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: GuthwineHighErrorRate
+        expr: rate(guthwine_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High error rate detected
+          description: Error rate is {{ $value }} errors/second
+      
+      - alert: GuthwineHighLatency
+        expr: histogram_quantile(0.99, rate(guthwine_transaction_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High transaction latency
+          description: P99 latency is {{ $value }} seconds
+      
+      - alert: GuthwineAgentFrozen
+        expr: guthwine_frozen_agents > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Agent frozen
+          description: "{{ $value }} agents are currently frozen"
+
+# Network Policies
+networkPolicy:
+  enabled: true
+  allowExternal: true
+  ingressRules: []
+  egressRules: []
+
+# Pod Security
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Service Account
+serviceAccount:
+  create: true
+  name: guthwine
+  annotations: {}
