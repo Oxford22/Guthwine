@@ -1,66 +1,50 @@
 {
   "name": "guthwine",
-  "version": "1.0.0",
-  "description": "Sovereign Governance Layer for AI Agents - Authorization, delegation, and audit system",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    },
-    "./services": {
-      "import": "./dist/services/index.js",
-      "types": "./dist/services/index.d.ts"
-    }
-  },
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
-    "start:mcp": "node dist/mcp-server.js",
-    "start:http": "node dist/http-server.js",
-    "test": "tsx src/test.ts",
-    "example": "tsx examples/basic-usage.ts",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio",
-    "lint": "eslint src --ext .ts",
-    "clean": "rm -rf dist",
-    "prepublishOnly": "npm run build"
-  },
-  "keywords": [
-    "ai",
-    "agents",
-    "governance",
-    "authorization",
-    "delegation",
-    "audit",
-    "mcp",
-    "model-context-protocol"
-  ],
-  "author": "",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Sovereign Governance Layer for AI Agents - Multi-tenant Enterprise Edition",
+  "author": "Guthwine Team",
   "license": "MIT",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "@prisma/client": "^5.22.0",
-    "fastify": "^4.28.1",
-    "json-logic-js": "^2.0.5",
-    "jsonwebtoken": "^9.0.2",
-    "openai": "^4.73.0",
-    "zod": "^3.23.8"
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:generate": "pnpm --filter @guthwine/database db:generate",
+    "db:push": "pnpm --filter @guthwine/database db:push",
+    "db:migrate": "pnpm --filter @guthwine/database db:migrate",
+    "db:seed": "pnpm --filter @guthwine/database db:seed",
+    "db:studio": "pnpm --filter @guthwine/database db:studio",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "prepare": "husky install"
   },
   "devDependencies": {
-    "@types/json-logic-js": "^2.0.7",
-    "@types/jsonwebtoken": "^9.0.7",
-    "@types/node": "^22.9.0",
-    "prisma": "^5.22.0",
-    "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "@types/node": "^20.10.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1",
+    "turbo": "^1.11.0",
+    "typescript": "^5.3.3"
   },
-  "engines": {
-    "node": ">=18.0.0"
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yaml,yml}": [
+      "prettier --write"
+    ]
   }
 }

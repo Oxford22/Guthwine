@@ -1,0 +1,1007 @@
+// Guthwine Database Schema
+// Multi-tenant Sovereign Governance Layer for AI Agents
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ORGANIZATIONS (Multi-tenancy)
+// =============================================================================
+
+model Organization {
+  id                   String   @id @default(uuid())
+  name                 String
+  slug                 String   @unique
+  
+  // Hierarchy
+  parentOrganizationId String?
+  parentOrganization   Organization?  @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id])
+  childOrganizations   Organization[] @relation("OrgHierarchy")
+  
+  // Status
+  status               OrganizationStatus @default(ACTIVE)
+  tier                 OrganizationTier   @default(FREE)
+  
+  // Settings (JSON)
+  settings             Json     @default("{}")
+  
+  // Encryption
+  encryptionKeySalt    String
+  
+  // Metadata
+  metadata             Json     @default("{}")
+  
+  // Timestamps
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  verifiedAt           DateTime?
+  
+  // Relations
+  users                User[]
+  agents               Agent[]
+  policies             Policy[]
+  delegations          DelegationToken[]
+  transactions         TransactionRequest[]
+  auditLogs            AuditLog[]
+  apiKeys              APIKey[]
+  webhooks             Webhook[]
+  usageRecords         UsageRecord[]
+  billingEvents        BillingEvent[]
+  complianceReports    ComplianceReport[]
+  
+  @@index([parentOrganizationId])
+  @@index([slug])
+  @@index([status])
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+  DEACTIVATED
+}
+
+enum OrganizationTier {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+  WHITE_LABEL
+}
+
+// =============================================================================
+// USERS
+// =============================================================================
+
+model User {
+  id                   String   @id @default(uuid())
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Identity
+  email                String
+  name                 String
+  avatarUrl            String?
+  
+  // Authentication
+  passwordHash         String?
+  mfaEnabled           Boolean  @default(false)
+  mfaMethod            MFAMethod?
+  mfaSecret            String?
+  
+  // SSO
+  ssoProvider          String?
+  ssoSubject           String?
+  
+  // Role
+  role                 UserRole @default(READONLY)
+  status               UserStatus @default(ACTIVE)
+  
+  // Custom permissions
+  customPermissions    String[] @default([])
+  deniedPermissions    String[] @default([])
+  
+  // Preferences (JSON)
+  preferences          Json     @default("{}")
+  
+  // Session tracking
+  lastLoginAt          DateTime?
+  lastLoginIp          String?
+  lastLoginUserAgent   String?
+  failedLoginAttempts  Int      @default(0)
+  lockedUntil          DateTime?
+  
+  // Timestamps
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  invitedAt            DateTime?
+  invitedBy            String?
+  
+  // Relations
+  sessions             Session[]
+  createdAgents        Agent[]  @relation("AgentCreator")
+  frozenAgents         Agent[]  @relation("AgentFreezer")
+  createdPolicies      Policy[] @relation("PolicyCreator")
+  assignedPolicies     PolicyAssignment[] @relation("PolicyAssigner")
+  reviewedTransactions TransactionRequest[] @relation("TransactionReviewer")
+  apiKeys              APIKey[] @relation("APIKeyCreator")
+  
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([email])
+  @@index([ssoProvider, ssoSubject])
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MANAGER
+  OPERATOR
+  DEVELOPER
+  AUDITOR
+  READONLY
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum MFAMethod {
+  TOTP
+  SMS
+  EMAIL
+  WEBAUTHN
+}
+
+// =============================================================================
+// SESSIONS
+// =============================================================================
+
+model Session {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId    String
+  
+  // Token
+  token             String   @unique
+  refreshToken      String?  @unique
+  
+  // Device info
+  ipAddress         String
+  userAgent         String
+  deviceFingerprint String?
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  expiresAt         DateTime
+  lastActivityAt    DateTime @default(now())
+  
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+// =============================================================================
+// API KEYS
+// =============================================================================
+
+model APIKey {
+  id                String   @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdById       String
+  createdBy         User     @relation("APIKeyCreator", fields: [createdById], references: [id])
+  
+  name              String
+  keyHash           String   @unique
+  keyPrefix         String
+  
+  // Permissions
+  permissions       String[] @default([])
+  
+  // Rate limits
+  rateLimitPerMinute Int?
+  
+  // Usage
+  lastUsedAt        DateTime?
+  usageCount        Int      @default(0)
+  
+  // Status
+  isActive          Boolean  @default(true)
+  expiresAt         DateTime?
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  revokedAt         DateTime?
+  
+  @@index([organizationId])
+  @@index([keyPrefix])
+}
+
+// =============================================================================
+// AGENTS
+// =============================================================================
+
+model Agent {
+  id                   String   @id @default(uuid())
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Identity
+  did                  String   @unique
+  name                 String
+  
+  // Keys
+  publicKey            String
+  encryptedPrivateKey  String
+  
+  // Hierarchy
+  parentAgentId        String?
+  parentAgent          Agent?   @relation("AgentHierarchy", fields: [parentAgentId], references: [id])
+  childAgents          Agent[]  @relation("AgentHierarchy")
+  createdByUserId      String
+  createdByUser        User     @relation("AgentCreator", fields: [createdByUserId], references: [id])
+  
+  // Type and status
+  type                 AgentType   @default(PRIMARY)
+  status               AgentStatus @default(ACTIVE)
+  
+  // Capabilities (JSON)
+  capabilities         Json     @default("{}")
+  
+  // Spending limits (JSON)
+  spendingLimits       Json     @default("{}")
+  
+  // Metadata (JSON)
+  metadata             Json     @default("{}")
+  
+  // Reputation
+  reputationScore      Int      @default(100)
+  
+  // Freeze info
+  frozenAt             DateTime?
+  frozenById           String?
+  frozenBy             User?    @relation("AgentFreezer", fields: [frozenById], references: [id])
+  frozenReason         String?
+  
+  // Timestamps
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  lastActiveAt         DateTime?
+  expiresAt            DateTime?
+  
+  // Relations
+  issuedDelegations    DelegationToken[] @relation("DelegationIssuer")
+  receivedDelegations  DelegationToken[] @relation("DelegationRecipient")
+  transactions         TransactionRequest[]
+  policyAssignments    PolicyAssignment[]
+  
+  @@index([organizationId])
+  @@index([did])
+  @@index([parentAgentId])
+  @@index([status])
+}
+
+enum AgentType {
+  PRIMARY
+  DELEGATED
+  SERVICE
+  EPHEMERAL
+}
+
+enum AgentStatus {
+  ACTIVE
+  FROZEN
+  REVOKED
+  PENDING_APPROVAL
+}
+
+// =============================================================================
+// POLICIES
+// =============================================================================
+
+model Policy {
+  id                String   @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Identity
+  name              String
+  description       String?
+  
+  // Type and scope
+  type              PolicyType
+  scope             PolicyScope @default(ORGANIZATION)
+  
+  // Rules (JSON Logic)
+  rules             Json
+  
+  // Semantic constraint (JSON)
+  semanticConstraint Json?
+  
+  // Action and priority
+  action            PolicyAction @default(DENY)
+  priority          Int      @default(100)
+  
+  // Status
+  isActive          Boolean  @default(true)
+  isSystem          Boolean  @default(false)
+  
+  // Versioning
+  version           Int      @default(1)
+  previousVersionId String?
+  
+  // Metadata
+  metadata          Json     @default("{}")
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdById       String
+  createdBy         User     @relation("PolicyCreator", fields: [createdById], references: [id])
+  
+  // Relations
+  assignments       PolicyAssignment[]
+  
+  @@index([organizationId])
+  @@index([type])
+  @@index([isActive])
+}
+
+enum PolicyType {
+  SPENDING
+  TEMPORAL
+  VENDOR
+  SEMANTIC
+  COMPOSITE
+  RATE_LIMIT
+  GEOGRAPHIC
+}
+
+enum PolicyScope {
+  ORGANIZATION
+  AGENT
+  DELEGATION
+}
+
+enum PolicyAction {
+  ALLOW
+  DENY
+  FLAG
+  REQUIRE_MFA
+  NOTIFY
+}
+
+model PolicyAssignment {
+  id               String   @id @default(uuid())
+  policyId         String
+  policy           Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  agentId          String
+  agent            Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  // Override settings
+  overridePriority Int?
+  overrideAction   PolicyAction?
+  
+  // Timestamps
+  assignedAt       DateTime @default(now())
+  assignedById     String
+  assignedBy       User     @relation("PolicyAssigner", fields: [assignedById], references: [id])
+  
+  @@unique([policyId, agentId])
+  @@index([agentId])
+}
+
+// =============================================================================
+// DELEGATIONS
+// =============================================================================
+
+model DelegationToken {
+  id                   String   @id @default(uuid())
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Parties
+  issuerAgentId        String
+  issuerAgent          Agent    @relation("DelegationIssuer", fields: [issuerAgentId], references: [id])
+  issuerDid            String
+  recipientAgentId     String
+  recipientAgent       Agent    @relation("DelegationRecipient", fields: [recipientAgentId], references: [id])
+  recipientDid         String
+  
+  // Token
+  tokenJti             String   @unique
+  signedToken          String   @db.Text
+  tokenHash            String   @unique
+  
+  // Chain
+  parentTokenId        String?
+  parentToken          DelegationToken? @relation("DelegationChain", fields: [parentTokenId], references: [id])
+  childTokens          DelegationToken[] @relation("DelegationChain")
+  depth                Int      @default(0)
+  chainHash            String
+  
+  // Constraints (JSON)
+  constraints          Json
+  
+  // Usage tracking
+  usageCount           Int      @default(0)
+  totalSpent           Float    @default(0)
+  lastUsedAt           DateTime?
+  
+  // Status
+  status               DelegationStatus @default(ACTIVE)
+  revokedAt            DateTime?
+  revokedById          String?
+  revokedReason        String?
+  
+  // Timestamps
+  createdAt            DateTime @default(now())
+  expiresAt            DateTime
+  
+  @@index([organizationId])
+  @@index([issuerAgentId])
+  @@index([recipientAgentId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+enum DelegationStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  SUSPENDED
+}
+
+// =============================================================================
+// TRANSACTIONS
+// =============================================================================
+
+model TransactionRequest {
+  id                       String   @id @default(uuid())
+  organizationId           String
+  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId                  String
+  agent                    Agent    @relation(fields: [agentId], references: [id])
+  agentDid                 String
+  
+  // Transaction details
+  type                     TransactionType @default(PAYMENT)
+  amount                   Float
+  currency                 String   @default("USD")
+  
+  // Merchant (JSON)
+  merchant                 Json
+  
+  // Description
+  description              String?
+  reasoningTrace           String?  @db.Text
+  
+  // Delegation
+  delegationChainTokenIds  String[] @default([])
+  delegationDepth          Int      @default(0)
+  rootIssuerDid            String?
+  
+  // Status
+  status                   TransactionStatus @default(PENDING)
+  
+  // Policy evaluation (JSON)
+  policyEvaluation         Json?
+  riskScore                Int      @default(0)
+  
+  // Mandate
+  mandateId                String?  @unique
+  mandateToken             String?  @db.Text
+  mandateExpiresAt         DateTime?
+  
+  // Execution
+  paymentRail              PaymentRail?
+  paymentRailTransactionId String?
+  executedAt               DateTime?
+  executionError           String?
+  
+  // Review
+  requiresReview           Boolean  @default(false)
+  reviewedAt               DateTime?
+  reviewedById             String?
+  reviewedBy               User?    @relation("TransactionReviewer", fields: [reviewedById], references: [id])
+  reviewNotes              String?
+  
+  // Idempotency
+  idempotencyKey           String?
+  
+  // Metadata
+  metadata                 Json     @default("{}")
+  
+  // Timestamps
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  decidedAt                DateTime?
+  
+  // Relations
+  reconciliation           TransactionReconciliation?
+  
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId])
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum TransactionType {
+  PAYMENT
+  TRANSFER
+  REFUND
+  AUTHORIZATION
+  CAPTURE
+  VOID
+}
+
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+  EXECUTED
+  FAILED
+  CANCELLED
+  REQUIRES_REVIEW
+}
+
+enum PaymentRail {
+  STRIPE
+  COINBASE
+  WISE
+  PLAID
+  WEBHOOK
+  MANUAL
+}
+
+model TransactionReconciliation {
+  id                   String   @id @default(uuid())
+  organizationId       String
+  transactionId        String   @unique
+  transaction          TransactionRequest @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  // Expected vs actual
+  expectedAmount       Float
+  actualAmount         Float?
+  amountDiscrepancy    Float?
+  
+  // Status
+  status               ReconciliationStatus @default(PENDING)
+  
+  // Rail data
+  paymentRail          PaymentRail
+  railTransactionId    String?
+  railSettledAt        DateTime?
+  
+  // Resolution
+  resolvedAt           DateTime?
+  resolvedById         String?
+  resolution           String?
+  
+  // Timestamps
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  @@index([organizationId])
+  @@index([status])
+}
+
+enum ReconciliationStatus {
+  PENDING
+  MATCHED
+  DISCREPANCY
+  MISSING
+  DUPLICATE
+}
+
+// =============================================================================
+// AUDIT LOG
+// =============================================================================
+
+model AuditLog {
+  id                String   @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Sequence
+  sequenceNumber    Int
+  
+  // Action
+  action            String
+  severity          AuditSeverity @default(INFO)
+  
+  // Actor
+  actorType         ActorType
+  actorId           String?
+  actorDid          String?
+  actorIp           String?
+  actorUserAgent    String?
+  
+  // Target
+  targetType        String?
+  targetId          String?
+  
+  // Payload (JSON)
+  payload           Json     @default("{}")
+  
+  // Related entities
+  transactionId     String?
+  agentId           String?
+  policyId          String?
+  delegationId      String?
+  
+  // Merkle chain
+  previousHash      String?
+  entryHash         String
+  signature         String
+  
+  // Timestamps
+  timestamp         DateTime @default(now())
+  retainUntil       DateTime
+  
+  @@unique([organizationId, sequenceNumber])
+  @@index([organizationId])
+  @@index([action])
+  @@index([actorId])
+  @@index([timestamp])
+  @@index([transactionId])
+  @@index([agentId])
+}
+
+enum AuditSeverity {
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum ActorType {
+  USER
+  AGENT
+  SYSTEM
+  API_KEY
+}
+
+model MerkleRoot {
+  id               String   @id @default(uuid())
+  organizationId   String
+  
+  rootHash         String
+  startSequence    Int
+  endSequence      Int
+  entryCount       Int
+  
+  // Verification
+  signature        String
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  
+  // External anchoring
+  anchoredTo       String?
+  anchoredAt       DateTime?
+  anchorTxHash     String?
+  
+  @@index([organizationId])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// WEBHOOKS
+// =============================================================================
+
+model Webhook {
+  id               String   @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  name             String
+  url              String
+  secret           String
+  
+  // Events to subscribe to
+  events           String[] @default([])
+  
+  // Status
+  isActive         Boolean  @default(true)
+  
+  // Retry settings
+  maxRetries       Int      @default(3)
+  retryDelayMs     Int      @default(1000)
+  
+  // Stats
+  lastTriggeredAt  DateTime?
+  successCount     Int      @default(0)
+  failureCount     Int      @default(0)
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Relations
+  deliveries       WebhookDelivery[]
+  
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model WebhookDelivery {
+  id               String   @id @default(uuid())
+  webhookId        String
+  webhook          Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  
+  // Event
+  eventType        String
+  payload          Json
+  
+  // Delivery
+  status           DeliveryStatus @default(PENDING)
+  attempts         Int      @default(0)
+  lastAttemptAt    DateTime?
+  responseStatus   Int?
+  responseBody     String?
+  error            String?
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  deliveredAt      DateTime?
+  
+  @@index([webhookId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum DeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  RETRYING
+}
+
+// =============================================================================
+// USAGE & BILLING
+// =============================================================================
+
+model UsageRecord {
+  id               String   @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Period
+  periodStart      DateTime
+  periodEnd        DateTime
+  
+  // Metrics
+  mandatesIssued   Int      @default(0)
+  mandatesApproved Int      @default(0)
+  mandatesDenied   Int      @default(0)
+  apiCalls         Int      @default(0)
+  semanticEvals    Int      @default(0)
+  llmTokensUsed    Int      @default(0)
+  llmCostCents     Int      @default(0)
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  @@unique([organizationId, periodStart, periodEnd])
+  @@index([organizationId])
+  @@index([periodStart])
+}
+
+model BillingEvent {
+  id               String   @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Event type
+  type             BillingEventType
+  
+  // Amount
+  amountCents      Int
+  currency         String   @default("USD")
+  
+  // Description
+  description      String
+  
+  // Stripe
+  stripeEventId    String?  @unique
+  stripeInvoiceId  String?
+  
+  // Metadata
+  metadata         Json     @default("{}")
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  
+  @@index([organizationId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum BillingEventType {
+  SUBSCRIPTION_CREATED
+  SUBSCRIPTION_UPDATED
+  SUBSCRIPTION_CANCELLED
+  INVOICE_PAID
+  INVOICE_FAILED
+  USAGE_CHARGE
+  CREDIT_APPLIED
+  REFUND
+}
+
+// =============================================================================
+// COMPLIANCE
+// =============================================================================
+
+model ComplianceReport {
+  id               String   @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Report type
+  type             ReportType
+  
+  // Time range
+  startTime        DateTime
+  endTime          DateTime
+  
+  // Content (JSON)
+  summary          Json
+  details          Json
+  
+  // File
+  fileUrl          String?
+  fileFormat       FileFormat @default(JSON)
+  fileSizeBytes    Int?
+  
+  // Metadata
+  generatedAt      DateTime @default(now())
+  generatedById    String
+  expiresAt        DateTime
+  
+  @@index([organizationId])
+  @@index([type])
+  @@index([generatedAt])
+}
+
+enum ReportType {
+  TRANSACTION_SUMMARY
+  AGENT_ACTIVITY
+  POLICY_VIOLATIONS
+  DELEGATION_AUDIT
+  FULL_AUDIT_EXPORT
+  IMPACT_ASSESSMENT
+  RIGHT_TO_EXPLANATION
+}
+
+enum FileFormat {
+  JSON
+  CSV
+  PDF
+}
+
+// =============================================================================
+// SEMANTIC FIREWALL
+// =============================================================================
+
+model SemanticRule {
+  id               String   @id @default(uuid())
+  organizationId   String
+  
+  // Rule definition
+  name             String
+  constraint       String   @db.Text
+  
+  // Embedding
+  embedding        Float[]
+  embeddingModel   String
+  
+  // Config
+  strictness       Strictness @default(FLAG)
+  confidenceThreshold Float @default(0.7)
+  
+  // Status
+  isActive         Boolean  @default(true)
+  
+  // Stats
+  evaluationCount  Int      @default(0)
+  matchCount       Int      @default(0)
+  avgConfidence    Float?
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+enum Strictness {
+  BLOCK
+  FLAG
+  LOG
+}
+
+model SemanticEvaluation {
+  id               String   @id @default(uuid())
+  organizationId   String
+  transactionId    String
+  
+  // Input
+  transactionContext Json
+  
+  // Result
+  compliant        Boolean
+  confidence       Float
+  reasoning        String   @db.Text
+  
+  // LLM details
+  llmProvider      String
+  llmModel         String
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  costCents        Float
+  latencyMs        Int
+  
+  // Cache
+  cached           Boolean  @default(false)
+  cacheKey         String?
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  
+  @@index([organizationId])
+  @@index([transactionId])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// SYSTEM CONFIG
+// =============================================================================
+
+model SystemConfig {
+  id               String   @id @default(uuid())
+  
+  key              String   @unique
+  value            Json
+  
+  // Metadata
+  description      String?
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model GlobalFreeze {
+  id               String   @id @default(uuid())
+  
+  isActive         Boolean  @default(false)
+  reason           String?
+  
+  activatedAt      DateTime?
+  activatedById    String?
+  
+  deactivatedAt    DateTime?
+  deactivatedById  String?
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}

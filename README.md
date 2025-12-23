@@ -1,21 +1,76 @@
-# Guthwine
+# Guthwine v2
 
-**Sovereign Governance Layer for AI Agents**
+> **Sovereign Governance Layer for AI Agents**
 
-Guthwine is a comprehensive authorization, delegation, and audit system designed for AI agents. It provides a robust framework for managing agent identities, authorizing transactions, delegating permissions, and maintaining an immutable audit trail.
+Guthwine is a production-grade, multi-tenant authorization and governance system for AI agents. It provides cryptographic identity, hierarchical delegation, policy-based transaction authorization, semantic risk assessment, and comprehensive audit trails.
+
+Named after the legendary sword of King Éomer of Rohan, Guthwine ("battle-friend") serves as the trusted guardian between AI agents and the actions they take on behalf of humans.
 
 ## Features
 
-- **Agent Identity Management** - DID-based identity with cryptographic key pairs
-- **Transaction Authorization** - Policy-based approval system with JSON Logic rules
-- **Hierarchical Delegation** - JWT-based permission delegation with constraint inheritance
-- **Immutable Audit Trail** - Merkle tree verified ledger for tamper detection
-- **Rate Limiting** - Configurable spending limits with anomaly detection
-- **Semantic Firewall** - LLM-based risk assessment for transaction reasoning
-- **MCP Integration** - Model Context Protocol server for AI agent communication
-- **REST API** - Fastify-based HTTP API for direct integration
+### Core Capabilities
+
+| Feature | Description |
+|---------|-------------|
+| **Agent Identity** | DID-based identity with Ed25519 cryptographic key pairs |
+| **Transaction Authorization** | Policy-based approval using JSON Logic rules |
+| **Hierarchical Delegation** | JWT-based permission delegation with constraint inheritance |
+| **Audit Trail** | Immutable ledger with Merkle tree verification |
+| **Rate Limiting** | Sliding window limits with anomaly detection |
+| **Semantic Firewall** | LLM-based risk assessment for transaction reasoning |
+| **Kill Switch** | Instant freeze at agent, organization, or global level |
+
+### Enterprise Features
+
+- **Multi-Tenancy**: Full organization isolation with RBAC
+- **Enterprise SSO**: SAML 2.0 and OIDC integration
+- **Payment Rails**: Stripe, Plaid, and crypto wallet connectors
+- **Compliance**: GDPR data export, SOC 2 audit reports
+- **Observability**: Prometheus metrics, distributed tracing
+- **Chaos Engineering**: Built-in fault injection for resilience testing
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Guthwine v2                              │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │  Dashboard  │  │   HTTP API  │  │  MCP Server │             │
+│  │   (React)   │  │  (Fastify)  │  │   (stdio)   │             │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
+│         │                │                │                     │
+│  ┌──────┴────────────────┴────────────────┴──────┐             │
+│  │              Guthwine Service                  │             │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐         │             │
+│  │  │ Policy  │ │Semantic │ │Delegation│         │             │
+│  │  │ Engine  │ │Firewall │ │ Service  │         │             │
+│  │  └─────────┘ └─────────┘ └─────────┘         │             │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐         │             │
+│  │  │  Auth   │ │Compliance│ │ Payment │         │             │
+│  │  │ Service │ │ Service  │ │  Rails  │         │             │
+│  │  └─────────┘ └─────────┘ └─────────┘         │             │
+│  └───────────────────┬───────────────────────────┘             │
+│                      │                                          │
+│  ┌───────────────────┴───────────────────────────┐             │
+│  │                  Database                      │             │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐       │             │
+│  │  │ Prisma  │  │  Redis  │  │ Merkle  │       │             │
+│  │  │(Postgres)│ │ (Cache) │  │  Tree   │       │             │
+│  │  └─────────┘  └─────────┘  └─────────┘       │             │
+│  └───────────────────────────────────────────────┘             │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Quick Start
+
+### Prerequisites
+
+- Node.js 20+
+- pnpm 8+
+- Docker & Docker Compose (for local development)
+- PostgreSQL 15+ (or use Docker)
+- Redis 7+ (optional, for caching)
 
 ### Installation
 
@@ -25,210 +80,213 @@ git clone https://github.com/Oxford22/Guthwine.git
 cd Guthwine
 
 # Install dependencies
-npm install
+pnpm install
+
+# Copy environment file
+cp .env.example .env
+
+# Start infrastructure (PostgreSQL + Redis)
+docker-compose up -d
 
 # Generate Prisma client
-npm run db:generate
+pnpm db:generate
 
-# Push database schema
-npm run db:push
+# Run database migrations
+pnpm db:push
 
-# Build the project
-npm run build
+# Build all packages
+pnpm build
 ```
 
-### Configuration
-
-Copy the example environment file and configure:
+### Running the Services
 
 ```bash
-cp .env.example .env
+# Start HTTP API server (port 3000)
+pnpm start:api
+
+# Start MCP server (stdio)
+pnpm start:mcp
+
+# Start Dashboard (port 3001)
+pnpm start:dashboard
+
+# Run all in development mode
+pnpm dev
 ```
 
-Edit `.env` with your settings:
+## Packages
 
-```env
-DATABASE_URL="file:./dev.db"
-GUTHWINE_MASTER_KEY="your-secure-master-key"
-GUTHWINE_JWT_SECRET="your-jwt-secret"
-OPENAI_API_KEY="your-openai-api-key"  # Optional, for semantic firewall
-```
-
-### Running
-
-```bash
-# Run the HTTP server
-npm run start:http
-
-# Run the MCP server
-npm run start:mcp
-
-# Run tests
-npm test
-
-# Run the example
-npm run example
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Guthwine Service                         │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Identity  │  │  Delegation │  │     Policy Engine       │  │
-│  │   Service   │  │   Service   │  │   (JSON Logic + LLM)    │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │    Vault    │  │    Ledger   │  │    Semantic Firewall    │  │
-│  │   Service   │  │   Service   │  │    (Risk Assessment)    │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                      Rate Limiter                           ││
-│  └─────────────────────────────────────────────────────────────┘│
-├─────────────────────────────────────────────────────────────────┤
-│                         Prisma ORM                              │
-├─────────────────────────────────────────────────────────────────┤
-│                    SQLite / PostgreSQL                          │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Package | Description |
+|---------|-------------|
+| `@guthwine/core` | Core types, crypto utilities, and shared code |
+| `@guthwine/database` | Prisma schema, database client, Redis cache |
+| `@guthwine/api` | HTTP API server and all business logic services |
+| `@guthwine/mcp` | Model Context Protocol server for AI agents |
+| `@guthwine/sdk` | TypeScript client SDK |
+| `@guthwine/cli` | Command-line interface |
+| `@guthwine/dashboard` | React admin dashboard |
 
 ## Usage
 
-### Basic Usage
+### TypeScript SDK
 
 ```typescript
-import { GuthwineService, PolicyEngine } from 'guthwine';
+import { createClient } from '@guthwine/sdk';
 
-// Initialize
-const guthwine = new GuthwineService({
-  enableSemanticFirewall: true,
-  enableRateLimiting: true,
-  enableSemanticPolicyCheck: true,
+const client = createClient('http://localhost:3000', 'your-api-key');
+
+// Create an agent
+const agent = await client.createAgent({
+  name: 'Shopping Assistant',
+  type: 'PRIMARY',
 });
-
-await guthwine.initialize();
-
-// Register an agent
-const agent = await guthwine.registerAgent({
-  name: 'Shopping Agent',
-  description: 'AI agent for e-commerce purchases',
-});
-
-// Add a policy
-await guthwine.addPolicy(
-  agent.did,
-  'Max Transaction $500',
-  PolicyEngine.POLICY_TEMPLATES.maxAmount(500)
-);
 
 // Authorize a transaction
-const result = await guthwine.requestTransactionSignature(
-  agent.did,
-  {
-    amount: 150,
-    currency: 'USD',
-    merchantId: 'amazon_001',
-    merchantName: 'Amazon',
-    reasoningTrace: 'Purchasing office supplies for the team',
-  }
-);
+const result = await client.authorizeTransaction({
+  agentId: agent.id,
+  amount: 99.99,
+  currency: 'USD',
+  merchantId: 'amazon',
+  merchantName: 'Amazon',
+  reasoningTrace: 'User requested to purchase a book for their reading list',
+});
 
-if (result.decision === 'ALLOW') {
-  console.log('Transaction approved:', result.mandate);
-} else {
-  console.log('Transaction denied:', result.reason);
+if (result.status === 'APPROVED') {
+  console.log('Transaction approved!');
+  console.log('Mandate token:', result.mandateToken);
 }
 ```
 
-### Delegation
+### CLI
 
-```typescript
-// Issue delegation to a sub-agent
-const delegation = await guthwine.issueDelegation(
-  parentAgent.did,
-  childAgent.did,
-  {
-    maxAmount: 200,
-    allowedCategories: ['office', 'software'],
-    semanticConstraints: 'Only sustainable products',
-    expiresIn: 3600, // 1 hour
-  }
-);
+```bash
+# Configure the CLI
+guthwine config
 
-// Child agent uses delegation
-const result = await guthwine.requestTransactionSignature(
-  childAgent.did,
-  transaction,
-  [delegation.token] // Delegation chain
-);
+# List agents
+guthwine agents list
+
+# Authorize a transaction
+guthwine tx authorize -a <agent-id> --amount 50 -m amazon
+
+# Freeze an agent
+guthwine agents freeze <agent-id> -r "Suspicious activity"
+
+# View audit logs
+guthwine compliance audit -l 20
 ```
 
-### Policy Templates
+### MCP Integration
 
-```typescript
-// Maximum amount
-PolicyEngine.POLICY_TEMPLATES.maxAmount(500)
+Add to your MCP client configuration:
 
-// Allowed currencies
-PolicyEngine.POLICY_TEMPLATES.allowedCurrencies(['USD', 'EUR'])
-
-// Business hours only
-PolicyEngine.POLICY_TEMPLATES.businessHoursOnly()
-
-// Blocked merchants
-PolicyEngine.POLICY_TEMPLATES.blockedMerchants(['casino_123'])
-
-// Allowed categories
-PolicyEngine.POLICY_TEMPLATES.allowedCategories(['office', 'software'])
+```json
+{
+  "mcpServers": {
+    "guthwine": {
+      "command": "npx",
+      "args": ["@guthwine/mcp"],
+      "env": {
+        "DATABASE_URL": "postgresql://...",
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}
 ```
 
 ## API Reference
 
-### HTTP Endpoints
+### Agents
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/agents` | Register a new agent |
-| GET | `/agents/:did` | Get agent information |
-| POST | `/agents/:did/freeze` | Freeze an agent |
-| POST | `/agents/:did/unfreeze` | Unfreeze an agent |
-| POST | `/transactions/authorize` | Authorize a transaction |
-| POST | `/delegations` | Issue a delegation |
-| DELETE | `/delegations/:tokenHash` | Revoke a delegation |
-| POST | `/agents/:did/policies` | Add a policy |
-| GET | `/agents/:did/policies` | Get agent policies |
-| GET | `/audit` | Get audit trail |
-| GET | `/audit/verify` | Verify audit integrity |
-| POST | `/global/freeze` | Set global freeze |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/agents` | POST | Create a new agent |
+| `/v1/agents` | GET | List all agents |
+| `/v1/agents/:id` | GET | Get agent details |
+| `/v1/agents/:id/freeze` | POST | Freeze an agent |
+| `/v1/agents/:id/unfreeze` | POST | Unfreeze an agent |
+| `/v1/agents/:id/blast-radius` | GET | Calculate blast radius |
 
-### MCP Tools
+### Transactions
 
-- `request_transaction_signature` - Authorize a transaction
-- `register_agent` - Register a new agent
-- `issue_delegation` - Issue a delegation token
-- `revoke_delegation` - Revoke a delegation
-- `freeze_agent` - Freeze an agent (kill switch)
-- `unfreeze_agent` - Unfreeze an agent
-- `add_policy` - Add a policy rule
-- `get_policies` - Get agent policies
-- `get_audit_trail` - Get audit trail
-- `verify_audit_integrity` - Verify audit integrity
-- `get_agent_info` - Get agent information
-- `store_secret` - Store a secret in the vault
-- `get_rate_limit_status` - Get rate limit status
-- `set_global_freeze` - Set global freeze state
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/transactions/authorize` | POST | Authorize a transaction |
+| `/v1/transactions/:id` | GET | Get transaction details |
+| `/v1/transactions/:id/execute` | POST | Execute an approved transaction |
+| `/v1/transactions/:id/explain` | GET | Get decision explanation |
 
-## Security Considerations
+### Delegations
 
-1. **Master Key** - Store securely, never commit to version control
-2. **JWT Secret** - Use a strong, unique secret for mandate signing
-3. **Database** - Use PostgreSQL in production with proper access controls
-4. **API Keys** - Store in the encrypted vault, not in code
-5. **Rate Limits** - Configure appropriate limits for your use case
-6. **Audit Trail** - Regularly verify integrity with Merkle tree verification
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/delegations` | POST | Create a delegation |
+| `/v1/delegations/:id` | GET | Get delegation details |
+| `/v1/delegations/:id/revoke` | POST | Revoke a delegation |
+| `/v1/delegations/tree` | GET | Get delegation tree |
+
+### Policies
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/policies` | POST | Create a policy |
+| `/v1/policies` | GET | List all policies |
+| `/v1/policies/:id` | PUT | Update a policy |
+| `/v1/policies/:id` | DELETE | Delete a policy |
+
+## Configuration
+
+### Environment Variables
+
+```bash
+# Database
+DATABASE_URL="postgresql://user:pass@localhost:5432/guthwine"
+
+# Redis (optional)
+REDIS_URL="redis://localhost:6379"
+
+# Security
+JWT_SECRET="your-secret-key"
+ENCRYPTION_KEY="32-byte-hex-key"
+
+# LLM for Semantic Firewall
+OPENAI_API_KEY="sk-..."
+LLM_MODEL="gpt-4.1-mini"
+
+# Payment Rails (optional)
+STRIPE_SECRET_KEY="sk_..."
+PLAID_CLIENT_ID="..."
+PLAID_SECRET="..."
+
+# SSO (optional)
+SAML_ENTRY_POINT="https://idp.example.com/sso"
+OIDC_ISSUER="https://accounts.google.com"
+```
+
+## Security
+
+### Cryptographic Guarantees
+
+- **Agent Identity**: Ed25519 key pairs with DID identifiers
+- **Delegation Tokens**: JWT with RS256 signatures and constraint embedding
+- **Audit Trail**: SHA-256 Merkle tree linking for tamper detection
+- **Secrets**: AES-256-GCM encryption at rest
+
+### Kill Switch Hierarchy
+
+1. **Agent-Level**: Freeze individual agents
+2. **Organization-Level**: Freeze all agents in an organization
+3. **Global-Level**: Emergency freeze of all transactions system-wide
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+*"In the hands of a worthy bearer, Guthwine never fails."*
