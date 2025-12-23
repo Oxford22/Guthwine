@@ -21,3 +21,21 @@ export type {
   CommunityResult,
   AnomalyResult,
 } from './neo4j-service.js';
+
+// Fraud Detection
+export {
+  FraudDetectionService,
+  LouvainDetector,
+  WCCDetector,
+  FraudAlertType,
+} from './fraud-detection.js';
+
+export type {
+  FraudAlert,
+  FraudEvidence,
+  CommunityProfile,
+  AgentRiskProfile,
+  RiskFactor,
+  BehaviorProfile,
+  FraudDetectionConfig,
+} from './fraud-detection.js';
