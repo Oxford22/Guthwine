@@ -26,3 +26,6 @@ export * from './vss/index.js';
 
 // Advanced Merkle Trees (Cartesian structure)
 export * from './merkle-advanced/index.js';
+
+// Zero-Knowledge Proofs
+export * from '../zk/index.js';
