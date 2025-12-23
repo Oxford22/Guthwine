@@ -1,0 +1,177 @@
+// Guthwine - Prisma Schema
+// Sovereign Governance Layer for AI Agents
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Agent Identity
+model Agent {
+  id          String   @id @default(uuid())
+  did         String   @unique
+  name        String
+  description String?
+  publicKey   String
+  ownerDid    String?
+  isFrozen    Boolean  @default(false)
+  frozenAt    DateTime?
+  frozenReason String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  policies    Policy[]
+  auditLogs   AuditLog[]
+  delegationsIssued   DelegationToken[] @relation("DelegationsIssued")
+  delegationsReceived DelegationToken[] @relation("DelegationsReceived")
+  reputation  AgentReputation?
+  rateLimitWindow RateLimitWindow?
+
+  @@index([ownerDid])
+}
+
+// Agent Reputation
+model AgentReputation {
+  id              String   @id @default(uuid())
+  agentDid        String   @unique
+  successfulTxns  Int      @default(0)
+  failedTxns      Int      @default(0)
+  totalVolume     Float    @default(0)
+  reputationScore Float    @default(100)
+  lastUpdated     DateTime @default(now())
+
+  agent Agent @relation(fields: [agentDid], references: [did])
+}
+
+// Policy Rules
+model Policy {
+  id                  String   @id @default(uuid())
+  agentDid            String
+  name                String
+  description         String?
+  rules               String   // JSON Logic rules stored as JSON string
+  semanticConstraints String?
+  priority            Int      @default(0)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentDid], references: [did])
+
+  @@index([agentDid])
+}
+
+// Policy Snapshots for Audit
+model PolicySnapshot {
+  id        String   @id @default(uuid())
+  agentDid  String
+  policies  String   // JSON string of all policies at snapshot time
+  createdAt DateTime @default(now())
+
+  auditLogs AuditLog[]
+
+  @@index([agentDid])
+}
+
+// Delegation Tokens
+model DelegationToken {
+  id              String   @id @default(uuid())
+  tokenHash       String   @unique
+  issuerDid       String
+  recipientDid    String
+  constraints     String   // JSON string of DelegationConstraints
+  parentTokenHash String?
+  isRevoked       Boolean  @default(false)
+  revokedAt       DateTime?
+  revokedReason   String?
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  issuer    Agent @relation("DelegationsIssued", fields: [issuerDid], references: [did])
+  recipient Agent @relation("DelegationsReceived", fields: [recipientDid], references: [did])
+
+  @@index([issuerDid])
+  @@index([recipientDid])
+  @@index([tokenHash])
+}
+
+// Audit Log (Immutable Ledger)
+model AuditLog {
+  id               Int      @id @default(autoincrement())
+  agentDid         String
+  action           String
+  transactionType  String?
+  amount           Float?
+  currency         String?
+  merchantId       String?
+  reasoningTrace   String?
+  policySnapshotId String?
+  decision         String
+  decisionReason   String?
+  delegationChain  String?  // JSON array of token hashes
+  previousHash     String?
+  entryHash        String
+  createdAt        DateTime @default(now())
+
+  agent          Agent           @relation(fields: [agentDid], references: [did])
+  policySnapshot PolicySnapshot? @relation(fields: [policySnapshotId], references: [id])
+
+  @@index([agentDid])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// Merkle Tree Root for Audit Verification
+model MerkleRoot {
+  id        String   @id @default(uuid())
+  rootHash  String
+  startId   Int
+  endId     Int
+  createdAt DateTime @default(now())
+}
+
+// Secure Vault for API Keys
+model SecureVault {
+  id             String   @id @default(uuid())
+  keyName        String   @unique
+  encryptedValue String
+  iv             String
+  authTag        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Rate Limit Windows
+model RateLimitWindow {
+  id               String   @id @default(uuid())
+  agentDid         String   @unique
+  windowStart      DateTime
+  currentSpend     Float    @default(0)
+  transactionCount Int      @default(0)
+
+  agent Agent @relation(fields: [agentDid], references: [did])
+}
+
+// Transaction History for Anomaly Detection
+model TransactionHistory {
+  id        String   @id @default(uuid())
+  agentDid  String
+  amount    Float
+  timestamp DateTime @default(now())
+
+  @@index([agentDid])
+  @@index([timestamp])
+}
+
+// Global Settings
+model GlobalSettings {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  value        String
+  updatedAt    DateTime @updatedAt
+}
