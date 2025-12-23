@@ -20,46 +20,57 @@ Named after the legendary sword of King Éomer of Rohan, Guthwine ("battle-frien
 | **Semantic Firewall** | LLM-based risk assessment for transaction reasoning |
 | **Kill Switch** | Instant freeze at agent, organization, or global level |
 
-### Enterprise Features
+### Enterprise Features (v2)
 
-- **Multi-Tenancy**: Full organization isolation with RBAC
-- **Enterprise SSO**: SAML 2.0 and OIDC integration
-- **Payment Rails**: Stripe, Plaid, and crypto wallet connectors
-- **Compliance**: GDPR data export, SOC 2 audit reports
-- **Observability**: Prometheus metrics, distributed tracing
-- **Chaos Engineering**: Built-in fault injection for resilience testing
+| Feature | Description |
+|---------|-------------|
+| **Multi-Tenancy** | Full organization isolation with Row-Level Security |
+| **Policy Engine v2** | Inheritance, versioning, simulation, templates |
+| **HSM Abstraction** | Local/AWS CloudHSM/GCP Cloud KMS support |
+| **Enterprise SSO** | SAML 2.0, OIDC, SCIM 2.0 provisioning |
+| **Payment Rails** | Stripe, x402, Plaid connectors with reconciliation |
+| **Compliance Module** | EU AI Act impact assessment, human oversight |
+| **Observability** | OpenTelemetry tracing, Prometheus metrics, alerting |
+| **Real-time Dashboard** | WebSocket updates, D3.js visualizations |
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Guthwine v2                              │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │  Dashboard  │  │   HTTP API  │  │  MCP Server │             │
-│  │   (React)   │  │  (Fastify)  │  │   (stdio)   │             │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
-│         │                │                │                     │
-│  ┌──────┴────────────────┴────────────────┴──────┐             │
-│  │              Guthwine Service                  │             │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐         │             │
-│  │  │ Policy  │ │Semantic │ │Delegation│         │             │
-│  │  │ Engine  │ │Firewall │ │ Service  │         │             │
-│  │  └─────────┘ └─────────┘ └─────────┘         │             │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐         │             │
-│  │  │  Auth   │ │Compliance│ │ Payment │         │             │
-│  │  │ Service │ │ Service  │ │  Rails  │         │             │
-│  │  └─────────┘ └─────────┘ └─────────┘         │             │
-│  └───────────────────┬───────────────────────────┘             │
-│                      │                                          │
-│  ┌───────────────────┴───────────────────────────┐             │
-│  │                  Database                      │             │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐       │             │
-│  │  │ Prisma  │  │  Redis  │  │ Merkle  │       │             │
-│  │  │(Postgres)│ │ (Cache) │  │  Tree   │       │             │
-│  │  └─────────┘  └─────────┘  └─────────┘       │             │
-│  └───────────────────────────────────────────────┘             │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Guthwine v2 Architecture                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │   Dashboard  │  │   HTTP API   │  │  MCP Server  │  │     CLI      │ │
+│  │   (React)    │  │  (Fastify)   │  │   (stdio)    │  │  (Commander) │ │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘ │
+│         │                 │                 │                 │          │
+│         └─────────────────┴────────┬────────┴─────────────────┘          │
+│                                    │                                     │
+│  ┌─────────────────────────────────┴─────────────────────────────────┐  │
+│  │                        Guthwine Service                            │  │
+│  ├───────────────────────────────────────────────────────────────────┤  │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐  │  │
+│  │  │   Policy    │ │  Semantic   │ │ Delegation  │ │   Payment   │  │  │
+│  │  │   Engine    │ │  Firewall   │ │   Chain     │ │    Rails    │  │  │
+│  │  │    v2       │ │    (LLM)    │ │   Engine    │ │  Connectors │  │  │
+│  │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘  │  │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐  │  │
+│  │  │    SSO &    │ │ Compliance  │ │Observability│ │    HSM      │  │  │
+│  │  │   Access    │ │   Module    │ │   Service   │ │ Abstraction │  │  │
+│  │  │   Control   │ │  (AI Act)   │ │  (OTel)     │ │             │  │  │
+│  │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                    │                                     │
+│  ┌─────────────────────────────────┴─────────────────────────────────┐  │
+│  │                         Data Layer                                 │  │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐    │  │
+│  │  │   PostgreSQL    │  │     Redis       │  │   Merkle Tree   │    │  │
+│  │  │   (Prisma+RLS)  │  │   (Cache/PubSub)│  │   (Audit Chain) │    │  │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────┘    │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Quick Start
@@ -67,10 +78,10 @@ Named after the legendary sword of King Éomer of Rohan, Guthwine ("battle-frien
 ### Prerequisites
 
 - Node.js 20+
-- pnpm 8+
-- Docker & Docker Compose (for local development)
-- PostgreSQL 15+ (or use Docker)
-- Redis 7+ (optional, for caching)
+- pnpm 9+
+- Docker & Docker Compose
+- PostgreSQL 15+
+- Redis 7+
 
 ### Installation
 
@@ -94,6 +105,9 @@ pnpm db:generate
 # Run database migrations
 pnpm db:push
 
+# Seed database (optional)
+pnpm db:seed
+
 # Build all packages
 pnpm build
 ```
@@ -107,8 +121,8 @@ pnpm start:api
 # Start MCP server (stdio)
 pnpm start:mcp
 
-# Start Dashboard (port 3001)
-pnpm start:dashboard
+# Start Dashboard (port 5173)
+pnpm dev:dashboard
 
 # Run all in development mode
 pnpm dev
@@ -118,122 +132,137 @@ pnpm dev
 
 | Package | Description |
 |---------|-------------|
-| `@guthwine/core` | Core types, crypto utilities, and shared code |
-| `@guthwine/database` | Prisma schema, database client, Redis cache |
+| `@guthwine/core` | Core types, crypto utilities, HSM abstraction, permissions |
+| `@guthwine/database` | Prisma schema, PostgreSQL client, Redis cache, RLS |
 | `@guthwine/api` | HTTP API server and all business logic services |
 | `@guthwine/mcp` | Model Context Protocol server for AI agents |
 | `@guthwine/sdk` | TypeScript client SDK |
 | `@guthwine/cli` | Command-line interface |
-| `@guthwine/dashboard` | React admin dashboard |
+| `@guthwine/dashboard` | React admin dashboard with real-time updates |
 
-## Usage
+## v2 Feature Blocks
 
-### TypeScript SDK
+### Block A: Database & Multi-tenancy
+- PostgreSQL with Row-Level Security (RLS)
+- Organization hierarchy with billing
+- User roles: OWNER, ADMIN, POLICY_MANAGER, AGENT_OPERATOR, AUDITOR, READONLY
+- Scoped API keys with rotation and grace periods
 
-```typescript
-import { createClient } from '@guthwine/sdk';
+### Block B: Crypto Layer Hardening
+- HSM abstraction (local, AWS CloudHSM, GCP Cloud KMS)
+- Agent key lifecycle (generation, rotation, revocation)
+- Hardened mandate tokens with nonce and introspection
+- Delegation token versioning
 
-const client = createClient('http://localhost:3000', 'your-api-key');
+### Block C: Policy Engine v2
+- Policy inheritance (org → team → agent)
+- Policy versioning with diff viewer
+- Simulation mode (dry-run)
+- Policy templates library
 
-// Create an agent
-const agent = await client.createAgent({
-  name: 'Shopping Assistant',
-  type: 'PRIMARY',
-});
+### Block D: Payment Rail Connectors
+- Stripe integration
+- x402 HTTP payment protocol
+- Plaid account verification
+- Transaction reconciliation engine
 
-// Authorize a transaction
-const result = await client.authorizeTransaction({
-  agentId: agent.id,
-  amount: 99.99,
-  currency: 'USD',
-  merchantId: 'amazon',
-  merchantName: 'Amazon',
-  reasoningTrace: 'User requested to purchase a book for their reading list',
-});
+### Block E: MCP Server Production Mode
+- Multiple transports (stdio, SSE, WebSocket)
+- Per-agent rate limiting
+- Request signing verification
+- Graceful shutdown handling
 
-if (result.status === 'APPROVED') {
-  console.log('Transaction approved!');
-  console.log('Mandate token:', result.mandateToken);
-}
-```
+### Block F: Delegation Chain Engine
+- Full chain verification with cryptographic proofs
+- Redis-backed chain caching
+- D3.js visualization data export
+- Chain revocation propagation
 
-### CLI
+### Block G: SSO & Access Control
+- SAML 2.0 SP implementation
+- OIDC provider integration
+- SCIM 2.0 user provisioning
+- Fine-grained RBAC with permission matrix
 
-```bash
-# Configure the CLI
-guthwine config
+### Block H: Compliance Module
+- EU AI Act impact assessment
+- Human oversight workflow
+- Audit export (JSON, CSV, PDF)
+- Data retention policies
 
-# List agents
-guthwine agents list
+### Block I: Observability
+- OpenTelemetry tracing integration
+- Prometheus metrics endpoint
+- Grafana dashboard JSON
+- PagerDuty/Slack alerting
 
-# Authorize a transaction
-guthwine tx authorize -a <agent-id> --amount 50 -m amazon
+### Block J: Deployment & CI/CD
+- Multi-stage Dockerfile
+- Kubernetes manifests (Deployment, Service, HPA, PDB)
+- GitHub Actions workflows (CI, CD, release)
+- Helm chart
 
-# Freeze an agent
-guthwine agents freeze <agent-id> -r "Suspicious activity"
-
-# View audit logs
-guthwine compliance audit -l 20
-```
-
-### MCP Integration
-
-Add to your MCP client configuration:
-
-```json
-{
-  "mcpServers": {
-    "guthwine": {
-      "command": "npx",
-      "args": ["@guthwine/mcp"],
-      "env": {
-        "DATABASE_URL": "postgresql://...",
-        "OPENAI_API_KEY": "sk-..."
-      }
-    }
-  }
-}
-```
+### Block K: Full Dashboard
+- Real-time WebSocket updates
+- D3.js delegation chain visualization
+- Policy simulation interface
+- Comprehensive agent management
 
 ## API Reference
 
+### Authentication
+
+```bash
+# Login
+curl -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@example.com", "password": "password"}'
+```
+
 ### Agents
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/agents` | POST | Create a new agent |
-| `/v1/agents` | GET | List all agents |
-| `/v1/agents/:id` | GET | Get agent details |
-| `/v1/agents/:id/freeze` | POST | Freeze an agent |
-| `/v1/agents/:id/unfreeze` | POST | Unfreeze an agent |
-| `/v1/agents/:id/blast-radius` | GET | Calculate blast radius |
+```bash
+# Create agent
+curl -X POST http://localhost:3000/api/v1/agents \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name": "Shopping Assistant", "type": "AUTONOMOUS"}'
+
+# Freeze agent
+curl -X POST http://localhost:3000/api/v1/agents/:id/freeze \
+  -H "Authorization: Bearer $TOKEN"
+```
 
 ### Transactions
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/transactions/authorize` | POST | Authorize a transaction |
-| `/v1/transactions/:id` | GET | Get transaction details |
-| `/v1/transactions/:id/execute` | POST | Execute an approved transaction |
-| `/v1/transactions/:id/explain` | GET | Get decision explanation |
-
-### Delegations
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/delegations` | POST | Create a delegation |
-| `/v1/delegations/:id` | GET | Get delegation details |
-| `/v1/delegations/:id/revoke` | POST | Revoke a delegation |
-| `/v1/delegations/tree` | GET | Get delegation tree |
+```bash
+# Authorize transaction
+curl -X POST http://localhost:3000/api/v1/transactions/authorize \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "agentId": "agent-id",
+    "action": "payment.send",
+    "amount": 100,
+    "currency": "USD"
+  }'
+```
 
 ### Policies
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/policies` | POST | Create a policy |
-| `/v1/policies` | GET | List all policies |
-| `/v1/policies/:id` | PUT | Update a policy |
-| `/v1/policies/:id` | DELETE | Delete a policy |
+```bash
+# Create policy
+curl -X POST http://localhost:3000/api/v1/policies \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "name": "Max Transaction Limit",
+    "effect": "DENY",
+    "rules": { ">": [{"var": "amount"}, 10000] }
+  }'
+
+# Simulate policy
+curl -X POST http://localhost:3000/api/v1/policies/simulate \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"agentId": "agent-id", "action": "payment.send", "amount": 5000}'
+```
 
 ## Configuration
 
@@ -243,7 +272,7 @@ Add to your MCP client configuration:
 # Database
 DATABASE_URL="postgresql://user:pass@localhost:5432/guthwine"
 
-# Redis (optional)
+# Redis
 REDIS_URL="redis://localhost:6379"
 
 # Security
@@ -252,36 +281,57 @@ ENCRYPTION_KEY="32-byte-hex-key"
 
 # LLM for Semantic Firewall
 OPENAI_API_KEY="sk-..."
-LLM_MODEL="gpt-4.1-mini"
 
-# Payment Rails (optional)
+# Payment Rails
 STRIPE_SECRET_KEY="sk_..."
 PLAID_CLIENT_ID="..."
 PLAID_SECRET="..."
 
-# SSO (optional)
+# SSO
 SAML_ENTRY_POINT="https://idp.example.com/sso"
 OIDC_ISSUER="https://accounts.google.com"
 ```
 
+## Deployment
+
+### Docker
+
+```bash
+docker build -t guthwine-api --target api .
+docker build -t guthwine-mcp --target mcp .
+```
+
+### Kubernetes
+
+```bash
+helm install guthwine ./deploy/helm/guthwine \
+  --namespace guthwine \
+  --create-namespace
+```
+
+### CI/CD
+
+GitHub Actions workflows are provided in `docs/workflows/`:
+- `ci.yml` - Lint, test, security scan, Docker build
+- `cd.yml` - Staging/production deployment with canary
+- `release.yml` - Versioning, changelog, publishing
+
+Copy to `.github/workflows/` to activate.
+
 ## Security
 
-### Cryptographic Guarantees
+### Cryptographic Standards
 
-- **Agent Identity**: Ed25519 key pairs with DID identifiers
-- **Delegation Tokens**: JWT with RS256 signatures and constraint embedding
-- **Audit Trail**: SHA-256 Merkle tree linking for tamper detection
-- **Secrets**: AES-256-GCM encryption at rest
+- **Key Generation**: Ed25519 for agent identity
+- **Token Signing**: ES256 (ECDSA with P-256)
+- **Encryption**: AES-256-GCM for sensitive data
+- **Hashing**: SHA-256 for Merkle tree
 
 ### Kill Switch Hierarchy
 
 1. **Agent-Level**: Freeze individual agents
 2. **Organization-Level**: Freeze all agents in an organization
-3. **Global-Level**: Emergency freeze of all transactions system-wide
-
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+3. **Global-Level**: Emergency freeze of all transactions
 
 ## License
 
