@@ -35,3 +35,21 @@ export {
 } from './circuits/templates.js';
 
 export type { CircomTemplate } from './circuits/templates.js';
+
+// MPC Trusted Setup Ceremony
+export {
+  TrustedSetupCeremony,
+  CeremonyCoordinator,
+  createCeremony,
+  createCoordinator,
+  CeremonyState,
+} from './ceremony/index.js';
+
+export type {
+  CeremonyConfig,
+  ContributionConfig,
+  BeaconConfig,
+  Phase2Config,
+  CeremonyResult,
+  ParticipantInfo,
+} from './ceremony/index.js';
